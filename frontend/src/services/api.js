@@ -2,24 +2,38 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/api',
-  headers: {
-    'Content-Type': 'application/json'
-  }
+  headers: { 'Content-Type': 'application/json' }
 })
 
 export const bookService = {
-  // GET — поиск книг через бэкенд (который ходит в Open Library API)
-  searchBooks(query, limit = 12) {
-    return api.get('/books/search', { params: { q: query, limit } })
+  // CRUD
+  list(params = {}) {
+    return api.get('/books', { params })
+  },
+  get(id) {
+    return api.get(`/books/${id}`)
+  },
+  create(payload) {
+    return api.post('/books', payload)
+  },
+  update(id, payload) {
+    return api.put(`/books/${id}`, payload)
+  },
+  remove(id) {
+    return api.delete(`/books/${id}`)
   },
 
-  // GET — получить избранное (хранится на бэкенде)
-  getFavorites() {
-    return api.get('/books/favorites')
+  // Загрузка обложки (multipart)
+  uploadCover(file) {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post('/upload-cover', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
   },
 
-  // POST — добавить книгу в избранное
-  addToFavorites(book) {
-    return api.post('/books/favorites', book)
+  // Open Library — для импорта
+  searchOpenLibrary(q, limit = 12) {
+    return api.get('/openlibrary/search', { params: { q, limit } })
   }
 }

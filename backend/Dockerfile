@@ -2,12 +2,15 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Устанавливаем зависимости
+# Зависимости
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копируем код
+# Код
 COPY . .
+
+# Создаём папки для БД и загрузок (если их нет в контексте сборки)
+RUN mkdir -p data uploads
 
 EXPOSE 8000
 

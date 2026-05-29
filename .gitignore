@@ -1,0 +1,33 @@
+# Node
+node_modules/
+dist/
+.npm
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Env
+.env
+.env.local
+
+# Database — НЕ коммитим (но коммитим папку)
+data/*.db
+data/*.db-journal
+backend/data/*.db
+backend/data/*.db-journal
+
+# Uploads — НЕ коммитим содержимое, но сама папка нужна
+uploads/*
+!uploads/.gitkeep

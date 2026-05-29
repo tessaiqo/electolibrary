@@ -1,22 +1,27 @@
 services:
   backend:
     build: ./backend
-    container_name: elibrary-backend
+    container_name: electolibrary-backend
     ports:
       - "8000:8000"
+    volumes:
+      # Том для БД — переживает пересборки контейнера
+      - ./data:/app/data
+      # Том для загруженных обложек
+      - ./uploads:/app/uploads
     networks:
-      - elibrary-net
+      - elib-net
 
   frontend:
     build: ./frontend
-    container_name: elibrary-frontend
+    container_name: electolibrary-frontend
     ports:
       - "80:80"
     depends_on:
       - backend
     networks:
-      - elibrary-net
+      - elib-net
 
 networks:
-  elibrary-net:
+  elib-net:
     driver: bridge
