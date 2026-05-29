@@ -1,0 +1,22 @@
+services:
+  backend:
+    build: ./backend
+    container_name: elibrary-backend
+    ports:
+      - "8000:8000"
+    networks:
+      - elibrary-net
+
+  frontend:
+    build: ./frontend
+    container_name: elibrary-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - elibrary-net
+
+networks:
+  elibrary-net:
+    driver: bridge
