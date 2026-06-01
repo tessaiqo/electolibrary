@@ -1,12 +1,28 @@
 <template>
   <div>
-    <!-- Заголовок меняется в зависимости от вложенного маршрута -->
     <h2 class="page-title">{{ isImport ? 'Импорт из Open Library' : 'Каталог' }}</h2>
 
-    <!-- Каталог показываем ТОЛЬКО когда нет вложенного маршрута -->
     <template v-if="!isImport">
       <LayoutCard :items-count="filteredBooks.length">
         <template #header>Параметры списка</template>
+
+        <!-- Поисковая строка -->
+        <div class="filter-search">
+          <input
+            v-model.trim="searchQuery"
+            type="text"
+            placeholder="поиск по названию или автору…"
+            class="search-input"
+          />
+          <button
+            v-if="searchQuery"
+            class="search-clear"
+            @click="searchQuery = ''"
+            aria-label="очистить"
+          >
+            ×
+          </button>
+        </div>
 
         <div class="filters">
           <div class="filter-group">
@@ -39,6 +55,13 @@
       <div v-if="error" class="error">{{ error }}</div>
       <div v-if="loading" class="loading">// загружаем каталог…</div>
 
+      <div
+        v-else-if="searchQuery && filteredBooks.length === 0"
+        class="empty"
+      >
+        // ничего не найдено по запросу «{{ searchQuery }}»
+      </div>
+
       <BookList
         v-else
         :books="filteredBooks"
@@ -48,7 +71,6 @@
       />
     </template>
 
-    <!-- Вложенный роут (например, /books/import) -->
     <RouterView />
   </div>
 </template>
@@ -72,7 +94,10 @@ export default {
       loading: false,
       error: '',
       filterStatus: 'all',
-      sortKey: 'created_desc'
+      sortKey: 'created_desc',
+      searchQuery: '',
+      debouncedQuery: '',
+      debounceTimer: null
     }
   },
   computed: {
@@ -81,9 +106,21 @@ export default {
     },
     filteredBooks() {
       let arr = [...this.books]
+
+      // Поиск по тексту (название + автор)
+      if (this.debouncedQuery) {
+        const q = this.debouncedQuery.toLowerCase()
+        arr = arr.filter(b =>
+          b.title.toLowerCase().includes(q) ||
+          b.author.toLowerCase().includes(q)
+        )
+      }
+
+      // Фильтр по статусу
       if (this.filterStatus === 'in')  arr = arr.filter(b => b.in_stock)
       if (this.filterStatus === 'out') arr = arr.filter(b => !b.in_stock)
 
+      // Сортировка
       const cmp = {
         created_desc: (a, b) => new Date(b.created_at) - new Date(a.created_at),
         created_asc:  (a, b) => new Date(a.created_at) - new Date(b.created_at),
@@ -95,12 +132,22 @@ export default {
   },
   watch: {
     '$route'(to) {
-      // Перезагружаем список при возврате на /books
       if (to.name === 'books') this.loadBooks()
+    },
+    // Дебаунс поиска: пользователь печатает — ждём 250мс тишины,
+    // чтобы не перефильтровывать на каждую букву
+    searchQuery(val) {
+      clearTimeout(this.debounceTimer)
+      this.debounceTimer = setTimeout(() => {
+        this.debouncedQuery = val
+      }, 250)
     }
   },
   mounted() {
     if (!this.isImport) this.loadBooks()
+  },
+  beforeUnmount() {
+    clearTimeout(this.debounceTimer)
   },
   methods: {
     async loadBooks() {
