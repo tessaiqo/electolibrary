@@ -43,3 +43,40 @@ class OpenLibBook(BaseModel):
 class OpenLibResponse(BaseModel):
     books: list[OpenLibBook]
     total: int
+
+# ---- Аутентификация ----
+class UserRegister(BaseModel):
+    """Тело запроса при регистрации."""
+    email: str = Field(..., min_length=3, max_length=200)
+    password: str = Field(..., min_length=6, max_length=100)
+
+
+class UserLogin(BaseModel):
+    """Тело запроса при логине."""
+    email: str
+    password: str
+
+
+class UserOut(BaseModel):
+    """То, что возвращаем клиенту о пользователе."""
+    id: int
+    email: str
+    is_admin: bool
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TokenResponse(BaseModel):
+    """Ответ при успешном логине/регистрации."""
+    access_token: str
+    token_type: str = "bearer"
+    user: UserOut
+
+# ---- Избранное ----
+class FavoriteAdd(BaseModel):
+    """Тело для POST /api/favorites."""
+    book_id: int
+
+
+class FavoriteIdsResponse(BaseModel):
+    """Список id книг, которые пользователь добавил в избранное."""
+    ids: List[int]

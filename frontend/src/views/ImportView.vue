@@ -8,12 +8,15 @@
         @keyup.enter="search"
       />
       <button class="btn" :disabled="loading || !query" @click="search">
-        {{ loading ? '...' : 'Найти' }}
+        {{ loading ? "..." : "Найти" }}
       </button>
     </div>
 
     <div v-if="error" class="error">{{ error }}</div>
-    <div v-if="loading" class="loading">// ищем в open library…</div>
+
+    <div v-if="loading" class="skeleton-grid">
+      <BookCardSkeleton v-for="n in 8" :key="n" />
+    </div>
 
     <div v-else-if="results.length" class="import-results">
       <div class="results-meta">
@@ -21,24 +24,18 @@
       </div>
 
       <div class="books-grid">
-        <article
-          v-for="book in results"
-          :key="book.key"
-          class="book-card"
-        >
-          <div class="tech-label">
-            [ {{ book.year || '—' }} ] · openlib
-          </div>
+        <article v-for="book in results" :key="book.key" class="book-card">
+          <div class="tech-label">[ {{ book.year || "—" }} ] · openlib</div>
 
           <img
             :src="book.cover_url || PLACEHOLDER"
             :alt="book.title"
             class="book-cover"
-            @error="(e) => e.target.src = PLACEHOLDER"
+            @error="(e) => (e.target.src = PLACEHOLDER)"
           />
 
           <h3 class="book-title">{{ book.title }}</h3>
-          <p class="book-author">{{ book.author || 'неизв. автор' }}</p>
+          <p class="book-author">{{ book.author || "неизв. автор" }}</p>
 
           <div class="book-actions">
             <button
@@ -47,7 +44,7 @@
               :disabled="importingKey === book.key"
               @click="importBook(book)"
             >
-              {{ importingKey === book.key ? '...' : '+ Импортировать' }}
+              {{ importingKey === book.key ? "..." : "+ Импортировать" }}
             </button>
             <span v-else class="btn-small in-fav">✓ В каталоге</span>
           </div>
@@ -59,88 +56,122 @@
       // ничего не найдено — попробуйте другой запрос
     </div>
 
-    <div v-else class="empty">
-      // введите запрос (например, «tolkien» или «достоевский»)
-    </div>
+    <EmptyState v-else>
+      <template #art>
+        <svg
+          viewBox="0 0 200 160"
+          width="180"
+          height="140"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="3"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <circle cx="85" cy="80" r="35" />
+          <line x1="112" y1="107" x2="155" y2="150" />
+        </svg>
+      </template>
+      <template #title>Начните поиск</template>
+      введите название книги или автора — например, «Tolkien» или «Достоевский»
+    </EmptyState>
   </div>
 </template>
 
 <script>
-import { bookService } from '@/services/api.js'
+import BookCardSkeleton from "@/components/BookCardSkeleton.vue";
+import { bookService } from "@/services/api.js";
+import { useToast } from "@/composables/useToast.js";
+import EmptyState from '@/components/EmptyState.vue'
 
-const PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><rect fill="%23ecebe6" width="200" height="300"/><text x="50%" y="50%" font-family="monospace" font-size="14" fill="%23999" text-anchor="middle">[ no cover ]</text></svg>'
+const PLACEHOLDER =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><rect fill="%23ecebe6" width="200" height="300"/><text x="50%" y="50%" font-family="monospace" font-size="14" fill="%23999" text-anchor="middle">[ no cover ]</text></svg>';
 
 export default {
-  name: 'ImportView',
+  name: "ImportView",
+  components: { BookCardSkeleton, EmptyState },
+  setup() {
+    const toast = useToast();
+    return { toast };
+  },
   data() {
     return {
-      query: '',
+      query: "",
       results: [],
       totalFound: 0,
       loading: false,
       searched: false,
-      error: '',
+      error: "",
       existingTitles: new Set(),
       importingKey: null,
-      PLACEHOLDER
-    }
+      PLACEHOLDER,
+    };
   },
   async mounted() {
     try {
-      const { data } = await bookService.list()
-      data.forEach(b => {
-        this.existingTitles.add(this.norm(b.title) + '|' + this.norm(b.author))
-      })
+      const { data } = await bookService.list();
+      data.forEach((b) => {
+        this.existingTitles.add(this.norm(b.title) + "|" + this.norm(b.author));
+      });
     } catch (e) {
       // молча
     }
   },
   methods: {
-    norm(s) { return (s || '').toLowerCase().trim() },
+    norm(s) {
+      return (s || "").toLowerCase().trim();
+    },
 
     isImported(book) {
-      const k = this.norm(book.title) + '|' + this.norm(book.author)
-      return this.existingTitles.has(k)
+      const k = this.norm(book.title) + "|" + this.norm(book.author);
+      return this.existingTitles.has(k);
     },
 
     async search() {
-      if (!this.query) return
-      this.loading = true
-      this.error = ''
+      if (!this.query) return;
+      this.loading = true;
+      this.error = "";
       try {
-        const { data } = await bookService.searchOpenLibrary(this.query)
-        this.results = data.books
-        this.totalFound = data.total
-        this.searched = true
+        const { data } = await bookService.searchOpenLibrary(this.query);
+        this.results = data.books;
+        this.totalFound = data.total;
+        this.searched = true;
       } catch (e) {
-        this.error = 'Ошибка поиска: ' + (e.response?.data?.detail || e.message)
+        this.error =
+          "Ошибка поиска: " + (e.response?.data?.detail || e.message);
       } finally {
-        this.loading = false
+        this.loading = false;
       }
     },
 
     async importBook(book) {
-      this.importingKey = book.key
+      this.importingKey = book.key;
       try {
         const payload = {
-            title: book.title,
-            author: book.author || 'неизв. автор',
-            description: `Импортировано из Open Library (${book.key})`,
-             publisher: '',
-             year: book.year,
-             category: '0+',
-             cover_url: book.cover_url,
-             subjects: (book.subjects || []).join(', '),   // ← добавили
-             in_stock: true
-             }
-        await bookService.create(payload)
-        this.existingTitles.add(this.norm(book.title) + '|' + this.norm(book.author))
+          title: book.title,
+          author: book.author || "неизв. автор",
+          description: `Импортировано из Open Library (${book.key})`,
+          publisher: "",
+          year: book.year,
+          category: "0+",
+          cover_url: book.cover_url,
+          subjects: (book.subjects || []).join(", "),
+          in_stock: true,
+        };
+        await bookService.create(payload);
+        this.existingTitles.add(
+          this.norm(book.title) + "|" + this.norm(book.author),
+        );
+        this.toast.success(`«${book.title}» добавлена в каталог`);
       } catch (e) {
-        alert('Не удалось импортировать: ' + (e.response?.data?.detail || e.message))
+        this.toast.error(
+          "Не удалось импортировать: " +
+            (e.response?.data?.detail || e.message),
+        );
       } finally {
-        this.importingKey = null
+        this.importingKey = null;
       }
-    }
-  }
-}
+    },
+  },
+};
 </script>

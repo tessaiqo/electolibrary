@@ -2,9 +2,10 @@
   <article class="book-card">
     <div class="card-top">
       <div class="tech-label">
-        [ {{ book.year || '—' }} ] · {{ book.category }}
+        [ {{ book.year || "—" }} ] · {{ book.category }}
       </div>
       <button
+        ref="favBtn"
         class="fav-btn"
         :class="{ 'is-active': fav }"
         :aria-label="fav ? 'Убрать из избранного' : 'В избранное'"
@@ -22,30 +23,34 @@
       </button>
     </div>
 
-    <RouterLink :to="{ name: 'book-detail', params: { id: book.id } }" class="book-card__link">
+    <RouterLink
+      :to="{ name: 'book-detail', params: { id: book.id } }"
+      class="book-card__link"
+    >
       <img
         :src="coverUrl"
         :alt="book.title"
         class="book-cover"
         @error="onImageError"
       />
-      <h3 class="book-title">{{ book.title }}</h3>
-      <p class="book-author">{{ book.author }}</p>
+      <h3 class="book-title" v-html="highlight(book.title)"></h3>
+      <p class="book-author" v-html="highlight(book.author)"></p>
     </RouterLink>
 
     <p v-if="book.publisher" class="book-meta">{{ book.publisher }}</p>
 
     <div class="book-status" :class="{ 'is-out': !book.in_stock }">
       <span class="dot"></span>
-      {{ book.in_stock ? 'в наличии' : 'нет в наличии' }}
+      {{ book.in_stock ? "в наличии" : "нет в наличии" }}
     </div>
 
-    <div class="book-actions">
+    <!-- Кнопки управления — ТОЛЬКО админ -->
+    <div v-if="isAdmin" class="book-actions">
       <button class="btn-small btn-edit" @click="$emit('edit', book)">
         Редакт.
       </button>
       <button class="btn-small btn-toggle" @click="$emit('toggle', book)">
-        {{ book.in_stock ? '— выдать' : '+ вернуть' }}
+        {{ book.in_stock ? "— выдать" : "+ вернуть" }}
       </button>
       <button class="btn-small btn-delete" @click="$emit('delete', book)">
         Удалить
@@ -54,37 +59,75 @@
   </article>
 </template>
 
-    
-
 <script>
-import { useFavorites } from '@/composables/useFavorites.js'
+import { useFavorites } from "@/composables/useFavorites.js";
+import { useAuth } from "@/composables/useAuth.js";
+import { useToast } from "@/composables/useToast.js";
+import { flyHeartTo } from "@/composables/useFlyingHeart.js";
 
-const PLACEHOLDER = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><rect fill="%23ecebe6" width="200" height="300"/><text x="50%" y="50%" font-family="monospace" font-size="14" fill="%23999" text-anchor="middle">[ no cover ]</text></svg>'
+const PLACEHOLDER =
+  'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"><rect fill="%23ecebe6" width="200" height="300"/><text x="50%" y="50%" font-family="monospace" font-size="14" fill="%23999" text-anchor="middle">[ no cover ]</text></svg>';
 
 export default {
-  name: 'BookItem',
+  name: "BookItem",
   props: {
-    book: { type: Object, required: true }
+    book: { type: Object, required: true },
+    highlightQuery: { type: String, default: "" },
   },
-  emits: ['edit', 'delete', 'toggle'],
+  emits: ["edit", "delete", "toggle"],
   setup() {
-    const { isFavorite, toggle } = useFavorites()
-    return { isFavorite, toggleFav: toggle }
+    const { isFavorite, toggle } = useFavorites();
+    const { isAdmin } = useAuth();
+    const toast = useToast();
+    return { isFavorite, toggleFav: toggle, isAdmin, toast };
   },
   computed: {
     coverUrl() {
-      return this.book.cover_url || PLACEHOLDER
+      return this.book.cover_url || PLACEHOLDER;
     },
     fav() {
-      return this.isFavorite(this.book.id)
-    }
+      return this.isFavorite(this.book.id);
+    },
   },
   methods: {
-    onImageError(e) { e.target.src = PLACEHOLDER },
-    onToggleFav() { this.toggleFav(this.book.id) },
-    openDetail() {
-      this.$router.push({ name: 'book-detail', params: { id: this.book.id } })
-    }
-  }
-}
+    onImageError(e) {
+      e.target.src = PLACEHOLDER;
+    },
+    async onToggleFav() {
+      const wasFav = this.fav;
+      try {
+        await this.toggleFav(this.book.id);
+        // Анимация только при добавлении, не при удалении
+        if (!wasFav && this.$refs.favBtn) {
+          flyHeartTo(this.$refs.favBtn);
+        }
+        this.toast.success(
+          wasFav ? "Убрано из избранного" : "Добавлено в избранное",
+          { timeout: 2000 },
+        );
+      } catch (e) {
+        this.toast.error("Не удалось обновить избранное");
+      }
+    },
+    highlight(text) {
+      if (!text) return "";
+      const q = (this.highlightQuery || "").trim();
+      if (!q) return this.escapeHtml(text);
+      const escaped = this.escapeHtml(text);
+      const re = new RegExp(`(${this.escapeRegex(q)})`, "gi");
+      return escaped.replace(re, "<mark>$1</mark>");
+    },
+    escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    },
+    escapeRegex(s) {
+      return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    },
+  },
+};
 </script>

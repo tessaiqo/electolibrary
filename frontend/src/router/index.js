@@ -17,7 +17,7 @@ const routes = [
         path: 'import',
         name: 'books-import',
         component: () => import('@/views/ImportView.vue'),
-        meta: { title: 'Импорт из Open Library' }
+        meta: { title: 'Импорт из Open Library', requiresAdmin: true }
       }
     ]
   },
@@ -25,7 +25,7 @@ const routes = [
     path: '/books/new',
     name: 'book-new',
     component: () => import('@/views/BookFormView.vue'),
-    meta: { title: 'Новая книга' }
+    meta: { title: 'Новая книга', requiresAdmin: true }
   },
   {
     path: '/books/:id',
@@ -39,20 +39,31 @@ const routes = [
     name: 'book-edit',
     component: () => import('@/views/BookFormView.vue'),
     props: true,
-    meta: { title: 'Редактирование' }
-  },
-  {
-    path: '/books/:id',
-    name: 'book-detail',
-    component: () => import('@/views/BookDetailView.vue'),
-    props: true,
-    meta: { title: 'Книга' }
+    meta: { title: 'Редактирование', requiresAdmin: true }
   },
   {
     path: '/favorites',
     name: 'favorites',
     component: () => import('@/views/FavoritesView.vue'),
     meta: { title: 'Избранное' }
+  },
+  {
+    path: '/login',
+    name: 'login',
+    component: () => import('@/views/LoginView.vue'),
+    meta: { title: 'Вход' }
+  },
+  {
+    path: '/register',
+    name: 'register',
+    component: () => import('@/views/RegisterView.vue'),
+    meta: { title: 'Регистрация' }
+  },
+  {
+    path: '/profile',
+    name: 'profile',
+    component: () => import('@/views/ProfileView.vue'),
+    meta: { title: 'Профиль', requiresAuth: true }
   },
   {
     path: '/:pathMatch(.*)*',
@@ -65,9 +76,26 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
-  scrollBehavior() {
-    return { top: 0 }
+  scrollBehavior() { return { top: 0 } }
+})
+
+// Глобальный guard: защита маршрутов с requiresAuth / requiresAdmin
+router.beforeEach((to, from, next) => {
+  // Читаем user прямо из localStorage, чтобы не плодить циклические импорты
+  const userRaw = localStorage.getItem('electolibrary:user')
+  const user = userRaw ? JSON.parse(userRaw) : null
+  const isAuth = !!localStorage.getItem('electolibrary:token') && !!user
+  const isAdmin = !!user?.is_admin
+
+  if (to.meta.requiresAdmin && !isAdmin) {
+    // Не админ — редирект на каталог
+    return next({ name: 'books' })
   }
+  if (to.meta.requiresAuth && !isAuth) {
+    // Не авторизован — редирект на логин, запомним куда хотел
+    return next({ name: 'login', query: { next: to.fullPath } })
+  }
+  next()
 })
 
 router.afterEach((to) => {

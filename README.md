@@ -1,9 +1,34 @@
-# ElectoLibrary — Электронная библиотека
+# 📚 ElectoLibrary — Электронная библиотека
 
-SPA-приложение на **Vue 3** с серверной частью на **FastAPI** и СУБД **SQLite**.
-Учебный проект, реализующий полный CRUD каталога книг с дополнительными возможностями:
-импорт из Open Library API, избранное на localStorage, рекомендации похожих книг
-по жанровым тегам.
+SPA-приложение электронной библиотеки на **Vue 3 + FastAPI + SQLite**. Учебный
+проект с полным набором функций: CRUD-каталог, поиск с дебаунсом, фильтрация
+и сортировка, избранное, импорт из Open Library API, JWT-авторизация с ролями,
+тёмная тема, drag-and-drop загрузка обложек, клавиатурные шорткаты и многое
+другое.
+
+![Главная страница](docs/imgs/01-home-light.jpg)
+
+---
+
+## 📋 Содержание
+
+1. [Титульная часть](#1-титульная-часть)
+2. [Цель работы](#2-цель-работы)
+3. [Стек технологий](#3-стек-технологий)
+4. [Архитектура проекта](#4-архитектура-проекта)
+5. [Структура репозитория](#5-структура-репозитория)
+6. [Возможности приложения](#6-возможности-приложения)
+7. [Роли и права доступа](#7-роли-и-права-доступа)
+8. [API сервера](#8-api-сервера)
+9. [Реализованные возможности Vue 3](#9-реализованные-возможности-vue-3)
+10. [UI/UX фичи](#10-uiux-фичи)
+11. [Инструкция по запуску](#11-инструкция-по-запуску)
+12. [Тестирование](#12-тестирование)
+13. [Скриншоты](#13-скриншоты)
+14. [Безопасность](#14-безопасность)
+15. [Возможные расширения](#15-возможные-расширения)
+16. [Выводы](#16-выводы)
+17. [Источники](#17-источники)
 
 ---
 
@@ -12,28 +37,28 @@ SPA-приложение на **Vue 3** с серверной частью на 
 | | |
 |---|---|
 | **Автор** | tessaiqo |
-| **Группа** | №1 |
-| **Дата** | 2026 |
-| **Название работы** | Разработка SPA-приложения на Vue 3 с сервером на Python |
+| **Группа** | Группа №1 |
+| **Год** | 2026 |
+| **Дисциплина** | Frontend-разработка |
+| **Тема работы** | Разработка SPA-приложения на Vue 3 с серверной частью на Python |
+| **Репозиторий** | https://github.com/tessaiqo/electolibrary |
 
 ---
 
 ## 2. Цель работы
 
-Освоить ключевые возможности экосистемы Vue 3 и серверной разработки на Python,
-а именно:
+Освоить полный цикл разработки fullstack-приложения от прототипа до развёртывания
+в Docker. В частности:
 
-- Реактивная привязка данных, события, `computed`, `watch`, ref'ы и жизненный цикл.
-- Декомпозиция UI на компоненты с `props`, `emits` и тремя видами слотов.
-- Маршрутизация Vue Router: статические, динамические, вложенные и именованные
-  маршруты, программная навигация, страница 404.
-- Работа с формами (`v-model` с модификаторами `.trim`, `.number`, валидация,
-  загрузка файлов).
-- HTTP-взаимодействие с REST API (axios).
-- Базовая серверная разработка: ORM SQLAlchemy, Pydantic-схемы, асинхронные
-  HTTP-клиенты, отдача статических файлов, CORS.
-- Контейнеризация: multi-stage Docker-сборка фронта, отдельный образ бэка,
-  оркестрация через docker-compose, тома для персистентного хранения.
+- Vue 3 — реактивная привязка данных, события, computed, watch, refs, lifecycle.
+- Декомпозиция UI на компоненты с props, emits и слотами всех трёх типов.
+- Маршрутизация Vue Router — статические, динамические, вложенные и именованные
+  маршруты, программная навигация, navigation guards, страница 404.
+- Работа с формами — `v-model` с модификаторами, валидация, загрузка файлов.
+- REST API — проектирование эндпоинтов, статус-коды, аутентификация через JWT.
+- FastAPI + SQLAlchemy 2.x — Pydantic-схемы, dependency injection, ORM.
+- Контейнеризация — multi-stage Docker-сборка, оркестрация через docker-compose,
+  тома для персистентного хранения.
 
 ---
 
@@ -41,129 +66,413 @@ SPA-приложение на **Vue 3** с серверной частью на 
 
 | Слой       | Технологии                                                |
 |------------|-----------------------------------------------------------|
-| Frontend   | Vue 3 (Options API), Vite 8, Vue Router 4, axios          |
+| Frontend   | Vue 3 (Options + Composition API), Vite 8, Vue Router 4, axios |
 | Backend    | FastAPI, Uvicorn, SQLAlchemy 2.x, Pydantic 2.x, httpx     |
-| Хранение   | SQLite (файл `data/library.db`), файлы обложек в `uploads/` |
+| Auth       | JWT (python-jose), bcrypt для хеширования паролей         |
+| Хранение   | SQLite, файлы обложек на диске (volume)                   |
 | Внешнее API| Open Library Search API                                   |
-| Инфра      | Docker, docker-compose, Nginx (для отдачи production-сборки) |
+| Инфра      | Docker, docker-compose, Nginx (production-раздача статики)|
 | Шрифты     | Bowlby One, Unbounded, Space Mono (Google Fonts)          |
 
 ---
 
-## 4. Структура репозитория
+## 4. Архитектура проекта
+
+Приложение состоит из **двух независимых сервисов**, связанных через REST API:
 
 ```
-ebook-library/
+┌──────────────────────┐       HTTP / JSON       ┌──────────────────────┐
+│   Frontend (Vue 3)   │ ◄─────────────────────► │   Backend (FastAPI)  │
+│                      │   Bearer-токен в Auth   │                      │
+│  Vite dev / Nginx    │                         │  Uvicorn + SQLAlchemy │
+└──────────────────────┘                         └──────────┬───────────┘
+                                                            │
+                                                            ▼
+                                                  ┌──────────────────┐
+                                                  │  SQLite + files  │
+                                                  │  data/library.db │
+                                                  │  uploads/*.jpg   │
+                                                  └──────────────────┘
+```
+
+В development:
+- Vite dev-сервер на порту 3000 проксирует `/api/...` на бэкенд `localhost:8000`.
+- Бэкенд запускается через `uvicorn --reload`.
+
+В production (Docker):
+- Nginx (порт 80) раздаёт собранный `dist/` и проксирует `/api/...` на сервис
+  `backend:8000`.
+- Оба сервиса работают в общей сети `elib-net`.
+- БД и обложки лежат в томах хост-системы (`./data` и `./uploads`).
+
+---
+
+## 5. Структура репозитория
+
+```
+electolibrary/
 ├── backend/
-│   ├── main.py             # FastAPI приложение + все эндпоинты
-│   ├── models.py           # ORM-модель Book
-│   ├── schemas.py          # Pydantic-схемы (BookCreate, BookOut, ...)
-│   ├── database.py         # Подключение SQLAlchemy + get_db()
+│   ├── main.py              # FastAPI: все эндпоинты + startup hooks
+│   ├── models.py            # ORM-модели Book, User, Favorite
+│   ├── schemas.py           # Pydantic-схемы запросов/ответов
+│   ├── database.py          # SQLAlchemy engine + get_db()
+│   ├── auth.py              # JWT, bcrypt, dependencies для ролей
 │   ├── requirements.txt
 │   └── Dockerfile
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── AppHeader.vue       # Верхнее меню
-│   │   │   ├── AppFooter.vue       # Подвал с именованным слотом
-│   │   │   ├── LayoutCard.vue      # Обёртка с 3 видами слотов
-│   │   │   ├── BookItem.vue        # Карточка одной книги
-│   │   │   ├── BookList.vue        # Сетка книг
-│   │   │   └── BookForm.vue        # Форма создания/редактирования
+│   │   │   ├── AppHeader.vue          # Шапка с навигацией и user-area
+│   │   │   ├── AppFooter.vue          # Подвал (именованный слот)
+│   │   │   ├── LayoutCard.vue         # Обёртка (все 3 типа слотов)
+│   │   │   ├── BookItem.vue           # Карточка книги
+│   │   │   ├── BookList.vue           # Сетка карточек
+│   │   │   ├── BookForm.vue           # Форма создания/редактирования
+│   │   │   ├── BookCardSkeleton.vue   # Скелетон при загрузке
+│   │   │   ├── EmptyState.vue         # Пустое состояние с SVG-иллюстрацией
+│   │   │   ├── ScrollToTop.vue        # Кнопка "наверх"
+│   │   │   ├── ShortcutsHelp.vue      # Модалка со справкой шорткатов
+│   │   │   └── ToastContainer.vue     # Контейнер toast-уведомлений
 │   │   ├── views/
-│   │   │   ├── HomeView.vue        # /
-│   │   │   ├── BooksView.vue       # /books (со вложенным RouterView)
-│   │   │   ├── BookDetailView.vue  # /books/:id
-│   │   │   ├── BookFormView.vue    # /books/new и /books/:id/edit
-│   │   │   ├── ImportView.vue      # /books/import (вложенный)
-│   │   │   ├── FavoritesView.vue   # /favorites
-│   │   │   └── NotFoundView.vue    # 404
-│   │   ├── router/index.js         # Vue Router
-│   │   ├── services/api.js         # axios-клиент
+│   │   │   ├── HomeView.vue           # /
+│   │   │   ├── BooksView.vue          # /books
+│   │   │   ├── BookDetailView.vue     # /books/:id
+│   │   │   ├── BookFormView.vue       # /books/new и /books/:id/edit
+│   │   │   ├── ImportView.vue         # /books/import (вложенный)
+│   │   │   ├── FavoritesView.vue      # /favorites
+│   │   │   ├── LoginView.vue          # /login
+│   │   │   ├── RegisterView.vue       # /register
+│   │   │   ├── ProfileView.vue        # /profile
+│   │   │   └── NotFoundView.vue       # 404
+│   │   ├── router/index.js            # Vue Router + navigation guards
+│   │   ├── services/api.js            # axios + interceptors
 │   │   ├── composables/
-│   │   │   └── useFavorites.js     # Composable: избранное в localStorage
-│   │   ├── assets/styles.css       # Глобальные стили
-│   │   ├── App.vue                 # Корневой компонент
+│   │   │   ├── useAuth.js             # JWT, login/logout/register
+│   │   │   ├── useFavorites.js        # Гибрид: localStorage + API
+│   │   │   ├── useTheme.js            # Светлая/тёмная тема
+│   │   │   ├── useToast.js            # Система уведомлений
+│   │   │   ├── useShortcuts.js        # Клавиатурные шорткаты
+│   │   │   └── useFlyingHeart.js      # Анимация летящего сердца
+│   │   ├── assets/styles.css          # Глобальные стили + темы
+│   │   ├── App.vue
 │   │   └── main.js
 │   ├── public/favicon.svg
 │   ├── index.html
 │   ├── vite.config.js
-│   ├── nginx.conf                  # Конфиг Nginx для production
-│   ├── Dockerfile                  # Multi-stage сборка
+│   ├── nginx.conf                     # Конфиг для production-сборки
+│   ├── Dockerfile                     # Multi-stage build
 │   └── package.json
-├── data/                           # SQLite БД (создаётся при первом запуске)
-├── uploads/                        # Загруженные обложки
-├── docs/imgs/                      # Скриншоты для отчёта
+├── data/                              # SQLite БД (через volume)
+├── uploads/                           # Загруженные обложки (через volume)
+├── docs/imgs/                         # Скриншоты для отчёта
 ├── docker-compose.yml
 └── README.md
 ```
 
 ---
 
-## 5. Реализованный функционал
+## 6. Возможности приложения
 
-### 5.1. Компоненты
+### Главная страница `/`
 
-| Компонент | Назначение | Возможности Vue, которые демонстрирует |
+Лендинг с заголовком и кнопками перехода в каталог и к форме добавления.
+
+![Главная](docs/imgs/01-home-light.jpg)
+
+### Каталог книг `/books`
+
+- Сетка карточек с обложкой, названием, автором, годом, категорией и статусом.
+- **Поиск** по названию и автору с дебаунсом 250 мс и **подсветкой совпадений**.
+- **Фильтр по статусу** — все / в наличии / нет в наличии.
+- **Сортировка** — по дате (новые/старые), по алфавиту (А→Я, Я→А).
+- Кнопка «сердечко» на каждой карточке — добавление в избранное.
+- Для админа: кнопки «Редакт.», «выдать/вернуть», «Удалить» прямо на карточке.
+
+![Каталог](docs/imgs/03-catalog.jpg)
+
+#### Поиск с подсветкой
+
+При вводе текста в поле поиска найденные символы выделяются в названиях и
+именах авторов. Дебаунс 250 мс — фильтрация срабатывает после паузы в наборе,
+что избавляет от лишних перерисовок.
+
+![Поиск с подсветкой](docs/imgs/04-catalog-search.jpg)
+
+### Детальная страница книги `/books/:id`
+
+- Большая обложка, мета-информация (издательство, год, категория, дата добавления).
+- **Жанровые теги** — приходят из Open Library при импорте.
+- Блок **«Похожие книги»** — топ-4 книги с пересекающимися тегами, либо того
+  же автора если тегов нет.
+- Кнопка «В избранное» доступна всем; «Редактировать/Удалить» — только админу.
+
+![Детальная страница](docs/imgs/06-book-detail.jpg)
+
+### Форма создания и редактирования
+
+Все поля по ТЗ (ГОСТ 2018):
+
+| Поле | Элемент | Особенности |
 |---|---|---|
-| `AppHeader.vue` | Верхняя навигация | RouterLink с `active-class`, реактивный счётчик избранного |
-| `AppFooter.vue` | Подвал | **Именованный слот** `links` для кастомизации содержимого |
-| `LayoutCard.vue` | Обёртка-карточка | **Все три типа слотов**: дефолтный, именованный (`header`), scoped (`footer` с `year` и `items`) |
-| `BookItem.vue` | Карточка книги | `props` (`book`), `emits` (`edit`, `delete`, `toggle`), `computed` (`coverUrl`, `fav`), интеграция с composable |
-| `BookList.vue` | Сетка карточек | `props` (массив), проброс событий вверх через `$emit('event', $event)` |
-| `BookForm.vue` | Форма создания/редактирования | `v-model.trim` / `.number`, валидация, refs (`fileInput`), `watch` на `initial`, загрузка файлов через `FormData` |
+| Заголовок | `<input>` + `v-model.trim` | Обязательное, мин. 2 символа |
+| Автор | `<input>` + `v-model.trim` | Обязательное, мин. 2 символа |
+| Описание | `<textarea>` | Необязательное |
+| Издательство | `<select>` | Выбор из списка |
+| Год | `<input type="number">` + `.number` | Числовая проверка, 0–2100 |
+| Категория | `<input type="radio">` | 0+, 6+, 12+, 16+, 18+ |
+| В наличии | `<input type="checkbox">` |  |
+| Обложка | `<input type="file">` + **drag-and-drop** | jpg/jpg/webp, до 5 МБ |
 
-### 5.2. Маршрутизация (Vue Router)
+Загрузка обложки реализована через перетаскивание (или клик):
 
-Все требования ТЗ покрыты в `src/router/index.js`:
+![Форма создания](docs/imgs/07-book-new-form.jpg)
 
-| Маршрут | Имя | Тип | Назначение |
+В момент перетаскивания зона подсвечивается малиновым:
+
+![Drag-and-drop](docs/imgs/08-book-new-dragover.jpg)
+
+Редактирование использует тот же компонент `BookForm`, с предзаполненными
+данными через prop `initial`:
+
+![Редактирование](docs/imgs/09-book-edit.jpg)
+
+### Импорт из Open Library `/books/import`
+
+Этот маршрут является **вложенным** (children в `/books`) — соответствует
+требованию ТЗ по вложенной маршрутизации.
+
+- Поле поиска шлёт запрос на бэкенд, который проксирует его в Open Library API
+  с явно указанным параметром `fields=...,subject` (без него теги не приходят).
+- На карточке кнопка «+ Импортировать» — одним кликом книга добавляется в нашу
+  SQLite со всеми данными и тегами.
+- Уже импортированные книги (по комбинации `title|author`) помечаются «✓ В каталоге».
+
+![Импорт](docs/imgs/11-import.jpg)
+
+### Избранное `/favorites` — гибридное хранение
+
+- **Гость** (не залогинен) — избранное хранится в `localStorage` этого браузера.
+- **Авторизованный** — избранное в БД (таблица `favorites` с FK на users.id и
+  books.id), синхронизируется между устройствами.
+- **При логине** — все локальные ID отправляются на бэк через
+  `POST /api/favorites/merge`, сливаются с серверным списком, локальный кэш чистится.
+- **При логауте** — локальное состояние очищается, чтобы следующий гость не видел
+  чужие сердечки.
+
+![Избранное](docs/imgs/10-favorites.jpg)
+
+### Профиль `/profile`
+
+Доступен только авторизованным. Показывает:
+
+- Аватарку с первой буквой email
+- Email, ID пользователя, роль
+- Бейдж «ADMIN» для администратора
+- Количество книг в избранном
+- Список возможностей с галочками/крестиками в зависимости от роли
+- Кнопку выхода
+
+Обычный пользователь:
+
+![Профиль пользователя](docs/imgs/14-profile-user.jpg)
+
+Администратор:
+
+![Профиль админа](docs/imgs/15-profile-admin.jpg)
+
+### Регистрация и вход
+
+![Логин](docs/imgs/12-login.jpg)
+
+![Регистрация](docs/imgs/13-register.jpg)
+
+### Страница 404
+
+Срабатывает на любой неизвестный URL через catch-all маршрут
+`/:pathMatch(.*)*`. Стилизована в общем дизайне.
+
+![404](docs/imgs/19-404.jpg)
+
+---
+
+## 7. Роли и права доступа
+
+В системе три уровня доступа:
+
+| Уровень | Email | Может |
+|---|---|---|
+| **Гость** | — | Видеть каталог и детальные страницы, добавлять в избранное (хранится в localStorage) |
+| **User** | любой зарегистрированный | Всё то же + избранное в БД (синхронизация между устройствами) |
+| **Admin** | `admin@library.local` | Всё то же + CRUD книг, импорт из OpenLibrary, загрузка обложек |
+
+### Как назначается админ
+
+Админ создаётся **автоматически при первом старте бэкенда** (фиксированный
+аккаунт):
+
+```
+email:    admin@library.local
+password: admin1234
+```
+
+Email и пароль можно переопределить через переменные окружения `ADMIN_EMAIL`
+и `ADMIN_PASSWORD`. Никакие другие пользователи не могут стать админами через
+интерфейс — это намеренное ограничение для учебного проекта.
+
+### Защита маршрутов на фронте
+
+В `router/index.js` глобальный `beforeEach` проверяет `meta.requiresAuth` и
+`meta.requiresAdmin`:
+
+```js
+router.beforeEach((to, from, next) => {
+  const user = JSON.parse(localStorage.getItem('electolibrary:user') || 'null')
+  const isAuth  = !!localStorage.getItem('electolibrary:token') && !!user
+  const isAdmin = !!user?.is_admin
+
+  if (to.meta.requiresAdmin && !isAdmin) return next({ name: 'books' })
+  if (to.meta.requiresAuth  && !isAuth)  return next({ name: 'login', query: { next: to.fullPath } })
+  next()
+})
+```
+
+### Защита эндпоинтов на бэке
+
+В `auth.py` определены два DI-хелпера:
+
+- `get_current_user` — извлекает user из JWT-токена, либо `401`.
+- `require_admin` — то же + проверка `user.is_admin`, либо `403`.
+
+CRUD-эндпоинты книг (`POST/PUT/DELETE`) и загрузка обложек защищены через
+`Depends(require_admin)`. GET-эндпоинты открыты всем.
+
+---
+
+## 8. API сервера
+
+Полная интерактивная документация — Swagger UI по адресу
+`http://localhost:8000/docs` после запуска бэкенда.
+
+![Swagger UI](docs/imgs/20-swagger.jpg)
+
+### Эндпоинты
+
+| Метод | Путь | Доступ | Описание |
 |---|---|---|---|
-| `/` | `home` | статический именованный | Главная |
-| `/books` | `books` | именованный | Каталог |
-| `/books/import` | `books-import` | **вложенный** под `/books` | Импорт из Open Library |
-| `/books/new` | `book-new` | статический именованный | Создание книги |
-| `/books/:id` | `book-detail` | **динамический** с `props: true` | Детальная книги |
-| `/books/:id/edit` | `book-edit` | динамический + `props: true` | Редактирование |
-| `/favorites` | `favorites` | именованный | Избранное |
-| `/:pathMatch(.*)*` | `not-found` | catch-all | **Страница 404** |
+| `GET` | `/api/health` | публичный | Health-check |
+| **Аутентификация** |||
+| `POST` | `/api/auth/register` | публичный | Регистрация (всегда создаёт user, не admin) |
+| `POST` | `/api/auth/login` | публичный | Логин по email/паролю, возвращает JWT |
+| `GET` | `/api/auth/me` | auth | Данные текущего пользователя |
+| **Книги** |||
+| `GET` | `/api/books` | публичный | Список с фильтрами `?in_stock=`, `?sort=` |
+| `GET` | `/api/books/{id}` | публичный | Одна книга или 404 |
+| `POST` | `/api/books` | **admin** | Создание |
+| `PUT` | `/api/books/{id}` | **admin** | Обновление |
+| `DELETE` | `/api/books/{id}` | **admin** | Удаление (с каскадом на favorites) |
+| **Обложки** |||
+| `POST` | `/api/upload-cover` | **admin** | Загрузка файла (jpg/jpg/webp, до 5 МБ) |
+| `GET` | `/uploads/{name}` | публичный | Отдача файла обложки |
+| **Open Library** |||
+| `GET` | `/api/openlibrary/search` | публичный | Прокси-поиск в Open Library API |
+| **Избранное** |||
+| `GET` | `/api/favorites` | auth | Список ID избранных книг |
+| `GET` | `/api/favorites/books` | auth | Полные объекты избранных книг |
+| `POST` | `/api/favorites` | auth | Добавить в избранное (идемпотентно) |
+| `DELETE` | `/api/favorites/{book_id}` | auth | Убрать из избранного |
+| `POST` | `/api/favorites/merge` | auth | Слияние локального избранного с серверным |
 
-**Программная навигация** используется в нескольких местах:
-- `this.$router.push({ name: 'book-edit', params: { id: book.id } })` — переход на редактирование из каталога;
-- `this.$router.push({ name: 'books' })` — редирект после успешного создания/удаления.
+### Модели данных
 
-**Hook `afterEach`** в роутере подставляет правильный `<title>` страницы из `to.meta.title`.
+**Book** (`models.Book`):
+```python
+id, title, author, description, publisher, year, category,
+cover_url, subjects (CSV), in_stock, created_at
+```
 
-### 5.3. computed, watch, refs, жизненный цикл
+**User** (`models.User`):
+```python
+id, email (unique), hashed_password, is_admin, created_at
+```
 
-**`computed`** — реактивные производные данные:
-- `BooksView.filteredBooks` — применяет текущий фильтр и сортировку к массиву книг;
-- `BookDetailView.tagsArray` — разбивает CSV-строку тегов на массив;
-- `BookDetailView.similarBooks` — алгоритм поиска похожих (см. ниже);
-- `AppHeader.favCount` — реактивный счётчик избранного (через composable).
+**Favorite** (`models.Favorite`):
+```python
+id, user_id (FK→users.id, CASCADE), book_id (FK→books.id, CASCADE), created_at
+# UniqueConstraint(user_id, book_id) — одна книга не может быть добавлена дважды
+```
 
-**`watch`**:
-- В `BooksView` — на `$route`, чтобы перезагружать список при возврате на `/books`;
-- В `BookForm` — на `initial` с `immediate: true`, чтобы подхватить данные книги при редактировании (асинхронная загрузка);
-- В `BookDetailView` — на `id` (с `immediate: true`), чтобы перезагружать данные при переходе между похожими книгами.
+---
 
-**Refs** — `BookForm` использует `ref="fileInput"` для программной очистки `<input type="file">` после удаления обложки.
+## 9. Реализованные возможности Vue 3
 
-**Жизненный цикл** — `mounted()` для начальной загрузки данных в большинстве views.
+### 9.1. Компоненты
 
-### 5.4. Слоты — все три вида
+| Компонент | Демонстрирует |
+|---|---|
+| `AppHeader.vue` | RouterLink, реактивное переключение между ролями |
+| `AppFooter.vue` | **Именованный слот** `links` |
+| `LayoutCard.vue` | **Все три типа слотов**: дефолтный, именованный `header`, **scope-слот** `footer` с переданными `year` и `items` |
+| `BookItem.vue` | Props, emits, computed (`coverUrl`, `fav`), refs (`favBtn`) для анимации |
+| `BookList.vue` | Props (массив), проброс событий вверх через `$emit('event', $event)` |
+| `BookForm.vue` | `v-model.trim` и `.number`, refs (`fileInput`), watch с `immediate: true` |
+| `ToastContainer.vue` | `Teleport`, `TransitionGroup` |
+| `ShortcutsHelp.vue` | `Teleport`, `Transition` |
+
+### 9.2. Маршрутизация
+
+Все требования ТЗ покрыты:
+
+| Маршрут | Имя | Тип |
+|---|---|---|
+| `/` | `home` | статический именованный |
+| `/books` | `books` | именованный |
+| `/books/import` | `books-import` | **вложенный** |
+| `/books/new` | `book-new` | защищённый `requiresAdmin` |
+| `/books/:id` | `book-detail` | **динамический с `props: true`** |
+| `/books/:id/edit` | `book-edit` | динамический + admin-only |
+| `/favorites` | `favorites` | именованный |
+| `/login` | `login` | публичный |
+| `/register` | `register` | публичный |
+| `/profile` | `profile` | защищённый `requiresAuth` |
+| `/:pathMatch(.*)*` | `not-found` | **catch-all для 404** |
+
+**Программная навигация** — в `BooksView.confirmDelete`, `BookFormView.onSubmit`
+и других местах:
+```js
+this.$router.push({ name: 'book-edit', params: { id: book.id } })
+```
+
+### 9.3. Computed / Watch / Refs / Lifecycle
+
+**Computed** — реактивные производные:
+- `BooksView.filteredBooks` — фильтр + поиск + сортировка в одной функции.
+- `BookDetailView.similarBooks` — алгоритм поиска похожих книг.
+- `AppHeader.shortEmail` — обрезка длинного email.
+
+**Watch**:
+- `BooksView.searchQuery` с **debounce-логикой через `clearTimeout`/`setTimeout`** (250 мс).
+- `BookForm.initial` с `immediate: true` — подхват асинхронно пришедших данных.
+- `BookDetailView.id` с `immediate: true` — перезагрузка при переходе между похожими.
+- `FavoritesView.isAuthenticated` — перезагрузка списка при смене авторизации.
+
+**Refs**:
+- `BookForm.$refs.fileInput` — программная очистка `<input type="file">`.
+- `BookItem.$refs.favBtn` — точка старта для анимации летящего сердца.
+
+**Lifecycle**:
+- `mounted()` — начальная загрузка данных в большинстве views.
+- `beforeUnmount()` — очистка таймера дебаунса, отписка от scroll-события в ScrollToTop.
+
+### 9.4. Слоты — все три типа
 
 Реализованы в `LayoutCard.vue`:
 
 ```vue
-<!-- Именованный слот -->
-<slot name="header" />
-
-<!-- Дефолтный (обычный) слот -->
-<slot />
-
-<!-- Slot scope: компонент передаёт данные обратно в шаблон родителя -->
-<slot name="footer" :year="currentYear" :items="itemsCount" />
+<slot name="header" />               <!-- именованный -->
+<slot />                             <!-- дефолтный -->
+<slot name="footer"
+      :year="currentYear"
+      :items="itemsCount" />         <!-- scope-слот -->
 ```
 
 Использование scope-слота в `BooksView`:
@@ -174,404 +483,117 @@ ebook-library/
 </template>
 ```
 
-В `AppFooter.vue` — **именованный слот** `links`, наполняемый из `App.vue`.
+В `AppFooter.vue` — именованный слот `links`, наполняемый из `App.vue`.
 
-### 5.5. Формы и валидация
+### 9.5. Composables (Composition API)
 
-`BookForm.vue` содержит все элементы ввода, перечисленные в ТЗ:
+Шесть собственных composables:
 
-| Поле | Элемент | Особенности |
-|---|---|---|
-| Заголовок | `<input>` + `v-model.trim` | Обязательное, мин. 2 символа |
-| Автор | `<input>` + `v-model.trim` | Обязательное, мин. 2 символа |
-| Описание | `<textarea>` + `v-model.trim` | Необязательное |
-| Издательство | `<select>` | Выбор из списка |
-| Год | `<input type="number">` + `v-model.number` | Числовая проверка, 0–2100 |
-| Категория | `<input type="radio">` | 0+, 6+, 12+, 16+, 18+ |
-| В наличии | `<input type="checkbox">` | Булево |
-| Обложка | `<input type="file">` | Только jpg/png/webp, лимит 5 МБ, загружается отдельным запросом |
-
-**Валидация** — собственный метод `validate()`, проверяет обязательные поля и
-диапазон года. При ошибках поля подсвечиваются классом `.is-error`, под ними
-выводится текст ошибки. Кнопка сабмита блокируется на время загрузки обложки
-и отправки формы.
-
-
-### 5.6. Поиск, фильтрация и сортировка
-
-В `BooksView` реализованы три механизма уточнения каталога, работающие **в комбинации** (поиск → фильтр → сортировка), всё через один `computed.filteredBooks`:
-
-- **Поиск по тексту** — по `title` и `author` одновременно, регистронезависимый (`toLowerCase`).
-- **Фильтр по статусу** — «Все» / «В наличии» / «Нет в наличии».
-- **Сортировка** — по дате добавления (новые/старые) и по алфавиту названия (А→Я, Я→А, через `localeCompare(_, 'ru')` для корректной русской сортировки).
-
-Изменение любого параметра мгновенно перерисовывает список без обращения к серверу — данные уже загружены в `this.books`.
-
-#### Debounce поиска (250 мс)
-
-Поиск по тексту реализован с **дебаунсом** через пару переменных в `data`:
-
-```js
-data() {
-  return {
-    searchQuery: '',       // то, что пользователь печатает прямо сейчас
-    debouncedQuery: '',    // «успокоенное» значение для фильтрации
-    debounceTimer: null
-  }
-}
-```
-
-И watcher, который откладывает обновление `debouncedQuery` на 250 мс после последнего нажатия клавиши:
-
-```js
-watch: {
-  searchQuery(val) {
-    clearTimeout(this.debounceTimer)
-    this.debounceTimer = setTimeout(() => {
-      this.debouncedQuery = val
-    }, 250)
-  }
-}
-```
-
-Computed-свойство `filteredBooks` зависит от `debouncedQuery`, а не от «сырого» `searchQuery`. Поле ввода привязано к `searchQuery` через `v-model` — поэтому реакция в UI (отображение введённого текста, появление кнопки «×») происходит мгновенно, а реальная фильтрация — только после паузы.
-
-**Зачем это нужно:**
-
-| Без дебаунса | С дебаунсом 250 мс |
+| Composable | Что делает |
 |---|---|
-| Каждое нажатие клавиши вызывает пересчёт `filteredBooks`. | Пересчёт происходит один раз — после того, как пользователь перестал печатать. |
-| При вводе слова из 10 букв — 10 проходов по массиву и 10 перерисовок DOM. | 1 проход и 1 перерисовка. |
-| На больших каталогах (сотни книг) ощущается как «лаги» в инпуте. | Ввод остаётся плавным независимо от размера каталога. |
+| `useAuth` | JWT-сессия: login/register/logout/refreshUser, реактивные `isAuthenticated`/`isAdmin` |
+| `useFavorites` | Гибридное хранение избранного, merge при логине |
+| `useTheme` | Светлая/тёмная тема, сохранение выбора, респект системных предпочтений |
+| `useToast` | Глобальная очередь toast-уведомлений с авто-удалением |
+| `useShortcuts` | Клавиатурные шорткаты на window, обработка вложенных комбинаций (g→h) |
+| `useFlyingHeart` | DOM-анимация летящего сердца при добавлении в избранное |
 
-**Почему именно 250 мс:** это эмпирически найденный «комфортный» порог в UI-разработке. Меньше 150 мс — дебаунс почти не имеет эффекта; больше 400 мс — пользователю кажется, что приложение «думает» и отстаёт. 200–300 мс — стандартный диапазон для поисковых полей в продакшн-приложениях (используется, например, в GitHub, Notion, Linear).
-
-**Почему не throttle:** throttle вызывал бы функцию через равные интервалы во время печати, что нам не нужно — нам нужно дождаться, когда пользователь закончит печатать. Debounce — правильный паттерн именно для поиска.
-
-**Защита от утечек:** в `beforeUnmount` вызывается `clearTimeout(this.debounceTimer)`, чтобы при уходе со страницы во время набора текста таймер не сработал на уже размонтированном компоненте.
-
-#### Условный рендеринг пустых списков
-
-Реализованы две разные пустые заглушки:
-
-```vue
-<div v-if="searchQuery && filteredBooks.length === 0" class="empty">
-  // ничего не найдено по запросу «{{ searchQuery }}»
-</div>
-```
-
-— и стандартная пустая заглушка внутри `BookList`, когда каталог в целом пуст. Это даёт пользователю чёткий контекст: «совсем нет книг» — это не то же самое, что «нет результатов по этому запросу».
-
-### 5.7. Избранное (localStorage)
-
-Реализовано через **Composition API composable** `src/composables/useFavorites.js`:
-
-- Хранилище — единый `reactive Set` в модуле (singleton-pattern на уровне модуля).
-- Любой компонент, вызывающий `useFavorites()`, подписан на изменения.
-- При каждом изменении синхронизируется с `localStorage` (ключ `electolibrary:favorites`).
-- Метод `syncWith(existingIds)` очищает «висящие» ID, которых уже нет в БД.
-- В `BooksView.confirmDelete` после удаления книги вызывается `favRemove(book.id)` — id уходит и из localStorage, и из БД одновременно.
-
-UI: сердечко в правом верхнем углу карточки, бейдж со счётчиком в шапке,
-отдельная страница `/favorites`.
-
-### 5.8. Похожие книги
-
-В `BookDetailView.similarBooks`:
-
-1. Берём массив тегов текущей книги (`tagsArray` — CSV → массив).
-2. Для каждой другой книги в каталоге считаем количество **общих тегов** (пересечение множеств в lowercase).
-3. Сортируем по убыванию количества общих тегов, берём топ-4.
-4. **Fallback**: если у текущей книги нет тегов вообще, возвращаем книги того же автора.
-
-Подзаголовок секции динамически отражает критерий: «по общим жанрам» либо «тот же автор».
-
-### 5.9. Импорт из Open Library
-
-Страница `/books/import` (вложенный маршрут):
-- Запрос идёт через свой бэкенд: `GET /api/openlibrary/search?q=...` → бэкенд проксирует на `https://openlibrary.org/search.json` с явным параметром `fields=key,title,author_name,first_publish_year,cover_i,subject` (без этого `subject` не возвращается).
-- Результаты отрисовываются карточками; одним кликом «+ Импортировать» создаётся книга в нашей SQLite через `POST /api/books` — со всеми данными, обложкой и тегами.
-- Защита от повторного импорта: уже добавленные книги (по комбинации `title|author`) помечаются «✓ В каталоге».
+Все composables используют один общий `reactive` state на уровне модуля
+(singleton-pattern) — любой компонент, вызывающий хук, подписан на изменения.
 
 ---
 
-## 6. Серверная часть
+## 10. UI/UX фичи
 
-### 6.1. CRUD-эндпоинты
+Сверх требований ТЗ добавлены:
 
-Все обязательные методы реализованы. Документация автоматически генерируется
-FastAPI и доступна по адресу `http://localhost:8000/docs` (Swagger UI).
+### 🍞 Toast-уведомления
 
-| Метод | Путь | Описание |
-|---|---|---|
-| `GET`    | `/api/books`            | Список с опц. фильтром `?in_stock=true/false` и сортировкой `?sort=created_desc\|created_asc\|title_asc\|title_desc` |
-| `GET`    | `/api/books/{id}`       | Одна книга (404 если не найдена) |
-| `POST`   | `/api/books`            | Создать (201) |
-| `PUT`    | `/api/books/{id}`       | Обновить (404 если не найдена) |
-| `DELETE` | `/api/books/{id}`       | Удалить (204 No Content) |
-| `POST`   | `/api/upload-cover`     | Multipart-загрузка файла обложки (jpg/png/webp, до 5 МБ). Возвращает `cover_url` |
-| `GET`    | `/api/openlibrary/search` | Прокси-эндпоинт к Open Library |
-| `GET`    | `/uploads/{filename}`   | Отдача загруженных обложек (StaticFiles) |
-| `GET`    | `/api/health`           | Health-check |
+Кастомная система всплывающих сообщений вместо `alert()`/`confirm()`. Четыре
+типа: success, error, warning, info. Автозакрытие через 3.5 с, можно кликнуть
+для немедленного закрытия. Анимация появления/исчезновения через
+`<TransitionGroup>`.
 
-### 6.2. Модель данных
+![Toast](docs/imgs/16-toast.jpg)
 
-`backend/models.py`:
+### ✨ Page transitions
 
-```python
-class Book(Base):
-    __tablename__ = "books"
-    id: Mapped[int]          = mapped_column(Integer, primary_key=True, autoincrement=True)
-    title: Mapped[str]       = mapped_column(String(300), nullable=False)
-    author: Mapped[str]      = mapped_column(String(300), nullable=False)
-    description: Mapped[str | None] = mapped_column(Text, default="")
-    publisher: Mapped[str | None]   = mapped_column(String(200), default="")
-    year: Mapped[int | None]        = mapped_column(Integer, nullable=True)
-    category: Mapped[str]    = mapped_column(String(20), default="0+")
-    cover_url: Mapped[str | None]   = mapped_column(String(500), nullable=True)
-    subjects: Mapped[str | None]    = mapped_column(Text, default="")  # CSV тегов
-    in_stock: Mapped[bool]   = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime]    = mapped_column(DateTime, default=datetime.utcnow)
-```
+Плавные переходы между маршрутами через Vue `<Transition>` с режимом `out-in`.
+Опасити + лёгкий вертикальный сдвиг — 250 мс.
 
-### 6.3. Хранение данных
+### 💀 Skeleton loaders
 
-- **SQLite** в файле `data/library.db` — простая встраиваемая СУБД, не требует
-  отдельного сервиса. Файл монтируется в Docker-контейнер через volume
-  (`./data:/app/data`), благодаря чему данные **переживают пересборку и перезапуск
-  контейнеров**.
-- **Файлы обложек** — папка `uploads/` (тоже примонтирована как том). Имена
-  файлов генерируются через `uuid.uuid4()`, чтобы избежать коллизий.
-- При каждом POST/PUT/DELETE данные коммитятся (`db.commit()`), запись
-  немедленно появляется в `.db`-файле. Можно открыть в **DB Browser for SQLite**
-  и убедиться вручную.
+Пульсирующие плейсхолдеры в форме карточек книг — отображаются вместо
+скучного «загружаем…» во время сетевых запросов. Используется CSS-shimmer.
 
-### 6.4. Безопасность и корректность
+![Skeleton](docs/imgs/05-skeleton.jpg)
 
-- **CORS**: разрешён только для `http://localhost:3000`, `http://localhost`,
-  `http://localhost:80` (разработка через Vite-прокси и production через Nginx).
-- **Валидация на бэке**: Pydantic-схемы со строгими типами, `Field(..., min_length=1)`,
-  `pattern` для категории.
-- **Загрузка файлов**: проверка расширения (`.jpg/.jpeg/.png/.webp`) и размера
-  (макс. 5 МБ). Чужие имена не используются — генерируется UUID.
-- **SQL-инъекции невозможны** — везде используется ORM SQLAlchemy с параметризованными запросами.
+### 🌗 Тёмная тема
 
----
+Переключатель в шапке (☾/☀). Реализована через CSS-переменные:
+один набор переменных в `:root`, второй в `html[data-theme="dark"]`. При
+первом визите тема определяется по `prefers-color-scheme`, потом сохраняется
+в localStorage.
 
-## 7. Docker
+![Тёмная тема](docs/imgs/02-home-dark.jpg)
 
-### 7.1. Multi-stage сборка фронта (`frontend/Dockerfile`)
+### ❤️‍🔥 Летящее сердечко
 
-```dockerfile
-# Stage 1: сборка через Node
-FROM node:20-alpine AS build
-WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-RUN npm run build
+При клике на сердечко в карточке от него летит миниатюрная копия по плавной
+кривой к иконке «Избранное» в шапке. По прибытии иконка пульсирует. SVG-элемент
+создаётся через `document.createElement`, удаляется по завершении.
 
-# Stage 2: только Nginx + собранная статика
-FROM nginx:alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
-```
+### 🎯 Drag-and-drop загрузка обложек
 
-Итоговый образ весит ~25 МБ (только nginx + статика). Node в финальном образе
-отсутствует — соответствует best-practice минимизации поверхности атаки.
+Большая dropzone вместо стандартного `<input type="file">`. Можно перетащить
+картинку из Finder/Explorer. Во время drag-over зона подсвечивается малиновым.
+Во время загрузки — спиннер. После загрузки — превью с кнопкой удаления.
 
-### 7.2. Nginx (`frontend/nginx.conf`)
+### ⌨️ Keyboard shortcuts
 
-Решает три задачи:
+Глобальные шорткаты регистрируются один раз в `main.js`:
 
-1. **Раздаёт собранный фронт** из `/usr/share/nginx/html`.
-2. **Проксирует `/api/...` на бэкенд-контейнер**:
-```nginx
-   location /api {
-       proxy_pass http://backend:8000;
-   }
-```
-   Имя `backend` резолвится Docker'ом по сервису из docker-compose.
-3. **SPA fallback** — `try_files $uri $uri/ /index.html;` — для корректной работы
-   Vue Router в `history`-режиме (любой неизвестный URL отдаёт `index.html`,
-   дальше клиентский роутер показывает нужную view или 404).
+| Клавиша | Действие |
+|---|---|
+| `/` | Фокус на поле поиска |
+| `?` | Показать справку шорткатов |
+| `Esc` | Снять фокус / закрыть модалку |
+| `G` `H` | Главная |
+| `G` `C` | Каталог |
+| `G` `F` | Избранное |
+| `G` `P` | Профиль |
 
-### 7.3. Backend Dockerfile
+Двухклавишные сочетания работают с таймаутом 800 мс. Шорткаты игнорируются
+внутри input/textarea.
 
-Минималистичный образ на `python:3.12-slim`. Папки `data/` и `uploads/`
-создаются в Dockerfile (`RUN mkdir -p ...`), но реально перекрываются
-volumes из compose.
+![Shortcuts](docs/imgs/17-shortcuts.jpg)
 
-### 7.4. docker-compose.yml
+### 🎨 Подсветка поисковых совпадений
 
-```yaml
-services:
-  backend:
-    build: ./backend
-    container_name: electolibrary-backend
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./data:/app/data       # БД переживает пересборки
-      - ./uploads:/app/uploads # Обложки тоже
-    networks:
-      - elib-net
+При вводе текста в поиск каталога найденные подстроки выделяются `<mark>`-ом.
+Регистронезависимо. В светлой теме — жёлто-зелёным, в тёмной — малиновым.
 
-  frontend:
-    build: ./frontend
-    container_name: electolibrary-frontend
-    ports:
-      - "80:80"
-    depends_on:
-      - backend
-    networks:
-      - elib-net
+### 🖼️ Empty states с SVG-иллюстрациями
 
-networks:
-  elib-net:
-    driver: bridge
-```
+Все пустые состояния (пустое избранное, нет результатов поиска, пустой импорт)
+оформлены через компонент `EmptyState.vue` с подходящей векторной иллюстрацией
+(книга, лупа, сердце) и call-to-action кнопкой.
 
-`depends_on` гарантирует порядок старта, а общая сеть `elib-net` позволяет
-nginx-у обращаться к бэкенду по имени `backend`.
+![Empty state](docs/imgs/18-empty-state.jpg)
+
+### 🚀 Scroll-to-top кнопка
+
+Малиновая круглая кнопка с чёрной обводкой появляется в правом нижнем углу
+после 400 px скролла. Плавная прокрутка наверх по клику. Анимация появления/
+исчезновения через `<Transition>`.
 
 ---
 
-## 8. Скриншоты интерфейса
+## 11. Инструкция по запуску
 
-### Главная
-![Главная](docs/imgs/01-home.jpg)
+### Вариант 1 — Docker (рекомендуется)
 
-### Каталог
-![Каталог](docs/imgs/02-catalog.jpg)
-
-### Каталог с применённым фильтром
-![Фильтрация](docs/imgs/03-catalog-filter.jpg)
-
-### Создание книги
-![Создание](docs/imgs/04-book-new.jpg)
-
-### Редактирование
-![Редактирование](docs/imgs/05-book-edit.jpg)
-
-### Детальная страница книги (теги + похожие)
-![Детальная](docs/imgs/06-book-detail.jpg)
-
-### Избранное
-![Избранное](docs/imgs/07-favorites.jpg)
-
-### Импорт из Open Library
-![Импорт](docs/imgs/08-import.jpg)
-
-### 404
-![404](docs/imgs/09-not-found.jpg)
-
-### Swagger UI (документация API)
-![Swagger](docs/imgs/10-swagger.jpg)
-
-### Данные в DB Browser for SQLite
-![SQLite](docs/imgs/11-dbbrowser.jpg)
-
----
-
-## 9. Примеры кода
-
-### 9.1. Дочерний компонент с событиями (BookList → BookItem)
-
-```vue
-<!-- BookList.vue -->
-<BookItem
-  v-for="book in books"
-  :key="book.id"
-  :book="book"
-  @edit="$emit('edit', $event)"
-  @delete="$emit('delete', $event)"
-  @toggle="$emit('toggle', $event)"
-/>
-```
-
-### 9.2. Composable для избранного
-
-```js
-// useFavorites.js
-import { reactive, computed } from 'vue'
-
-const state = reactive({ ids: new Set(loadFromStorage()) })
-
-export function useFavorites() {
-  return {
-    favoriteIds: computed(() => state.ids),
-    count: computed(() => state.ids.size),
-    isFavorite: (id) => state.ids.has(Number(id)),
-    toggle: (id) => {
-      const n = Number(id)
-      state.ids.has(n) ? state.ids.delete(n) : state.ids.add(n)
-      localStorage.setItem('electolibrary:favorites', JSON.stringify([...state.ids]))
-    }
-    // ...
-  }
-}
-```
-
-### 9.3. Computed с фильтрацией и сортировкой
-
-```js
-// BooksView.vue
-filteredBooks() {
-  let arr = [...this.books]
-  if (this.filterStatus === 'in')  arr = arr.filter(b => b.in_stock)
-  if (this.filterStatus === 'out') arr = arr.filter(b => !b.in_stock)
-  const cmp = {
-    created_desc: (a, b) => new Date(b.created_at) - new Date(a.created_at),
-    title_asc:    (a, b) => a.title.localeCompare(b.title, 'ru'),
-    // ...
-  }
-  return arr.sort(cmp[this.sortKey])
-}
-```
-
-### 9.4. FastAPI: CRUD-эндпоинт
-
-```python
-@app.put("/api/books/{book_id}", response_model=schemas.BookOut)
-def update_book(book_id: int, payload: schemas.BookUpdate, db: Session = Depends(get_db)):
-    book = db.get(Book, book_id)
-    if not book:
-        raise HTTPException(status_code=404, detail="Книга не найдена")
-    for field, value in payload.model_dump().items():
-        setattr(book, field, value)
-    db.commit()
-    db.refresh(book)
-    return book
-```
-
-### 9.5. Пример строки в SQLite
-
-```json
-{
-  "id": 1,
-  "title": "The Hobbit",
-  "author": "J. R. R. Tolkien",
-  "description": "Импортировано из Open Library (/works/OL27482W)",
-  "publisher": "",
-  "year": 1937,
-  "category": "0+",
-  "cover_url": "https://covers.openlibrary.org/b/id/14627509-M.jpg",
-  "subjects": "Fiction, Fantasy fiction, Adventure, English fiction, Hobbits",
-  "in_stock": true,
-  "created_at": "2026-05-29T18:42:11"
-}
-```
-
----
-
-## 10. Инструкция по запуску
-
-### Вариант 1 — через Docker (рекомендуется)
-
-Требования: **Docker Desktop**.
+Требование: установлен **Docker Desktop**.
 
 ```bash
 git clone https://github.com/tessaiqo/electolibrary.git
@@ -579,17 +601,19 @@ cd electolibrary
 docker compose up --build
 ```
 
-Открыть в браузере: **http://localhost** (фронт) и **http://localhost:8000/docs** (Swagger).
+Открыть в браузере:
+- **http://localhost** — приложение
+- **http://localhost:8000/docs** — Swagger UI
 
 Остановка:
-
 ```bash
 docker compose down
 ```
 
-Данные сохраняются в `./data/library.db` и `./uploads/` благодаря volume-маунтам.
+Данные сохраняются между перезапусками благодаря volume-маунтам
+(`./data:/app/data` и `./uploads:/app/uploads`).
 
-### Вариант 2 — локально (для разработки)
+### Вариант 2 — локальный запуск
 
 Требования: **Node.js 20+**, **Python 3.12+**.
 
@@ -598,7 +622,7 @@ docker compose down
 ```bash
 cd backend
 python3 -m venv venv
-source venv/bin/activate
+source venv/bin/activate         # на Windows: venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
@@ -611,64 +635,211 @@ npm install
 npm run dev
 ```
 
-Открыть: **http://localhost:3000**. Vite-сервер сам проксирует `/api` на `localhost:8000` (см. `vite.config.js`).
+Открыть **http://localhost:3000**. Vite-сервер сам проксирует `/api` на
+`localhost:8000` (см. `vite.config.js`).
 
-### Production-сборка фронта
+### Первый вход
+
+При первом старте бэкенд автоматически создаёт админа:
+
+```
+email:    admin@library.local
+password: admin1234
+```
+
+Войдите под этими данными, чтобы получить доступ к админским функциям
+(создание/редактирование/удаление книг, импорт).
+
+Можно также зарегистрировать обычного пользователя на странице
+`/register` — он не получит админских прав.
+
+### Production-сборка фронта (без Docker)
 
 ```bash
 cd frontend
-npm run build      # результат в dist/
-npm run preview    # быстрая проверка собранной версии
+npm run build           # результат в dist/
+npm run preview         # быстрая проверка production-сборки
+```
+
+### Переменные окружения бэкенда
+
+Можно переопределить через env при запуске:
+
+```bash
+ADMIN_EMAIL=root@example.com \
+ADMIN_PASSWORD=verystrongpass \
+JWT_SECRET=very-long-random-string-min-32-chars \
+uvicorn main:app
 ```
 
 ---
 
-## 11. Возможные расширения
+## 12. Тестирование
 
-В рамках учебной работы реализован минимальный набор. В прод-версии стоило бы:
+### Ручные сценарии
 
-- Заменить SQLite на PostgreSQL для конкурентного доступа.
-- Хранить избранное в БД с привязкой к пользователю (потребует авторизации).
-- Кэшировать ответы Open Library (Redis или встроенный LRU) — каждый запрос
-  сейчас идёт во внешний API.
-- Покрыть бэк тестами (pytest + httpx.AsyncClient).
-- Добавить пагинацию для длинных каталогов.
-- Реализовать загрузку обложек на S3-совместимое хранилище.
+**Гость:**
+1. Открыть `/books` — каталог виден.
+2. Кликнуть на сердечко — добавляется в localStorage.
+3. Попытаться открыть `/books/new` напрямую — редирект на `/books`.
+
+**Регистрация и вход:**
+1. `/register` → создать аккаунт → автоматический логин.
+2. В localStorage появляются `electolibrary:token` и `electolibrary:user`.
+3. Локальное избранное **сливается** с серверным (если что-то было).
+
+**Админ:**
+1. Логин `admin@library.local` / `admin1234`.
+2. В шапке появляются «Добавить», «Импорт», бейдж «ADMIN».
+3. На карточках появляются кнопки управления.
+4. `POST /api/books` через интерфейс → книга появляется в каталоге и в БД.
+
+**Каскадное удаление:**
+1. Юзер добавил книгу в избранное.
+2. Админ удалил эту книгу.
+3. Запись из `favorites` пропадает автоматически (FK CASCADE).
+
+### Swagger
+
+Все эндпоинты можно протестировать через Swagger UI на
+`http://localhost:8000/docs` — авторизация через кнопку **Authorize** в
+правом верхнем углу.
+
+### DB Browser
+
+Содержимое БД смотрится через DB Browser for SQLite:
+
+![DB Browser — books](docs/imgs/21-dbbrowser.jpg)
+
+![DB Browser — users](docs/imgs/22-dbbrowser-users.jpg)
+
+![DB Browser — favorites](docs/imgs/23-dbbrowser-favorites.jpg)
 
 ---
 
-## 12. Выводы
+## 13. Скриншоты
+
+### Главная (светлая и тёмная темы)
+
+![Главная светлая](docs/imgs/01-home-light.jpg)
+![Главная тёмная](docs/imgs/02-home-dark.jpg)
+
+### Каталог и поиск
+
+![Каталог](docs/imgs/03-catalog.jpg)
+![Поиск с подсветкой](docs/imgs/04-catalog-search.jpg)
+![Скелетоны](docs/imgs/05-skeleton.jpg)
+
+### Книга
+
+![Детальная](docs/imgs/06-book-detail.jpg)
+![Создание](docs/imgs/07-book-new-form.jpg)
+![Drag-and-drop](docs/imgs/08-book-new-dragover.jpg)
+![Редактирование](docs/imgs/09-book-edit.jpg)
+
+### Избранное и импорт
+
+![Избранное](docs/imgs/10-favorites.jpg)
+![Импорт](docs/imgs/11-import.jpg)
+
+### Авторизация и профиль
+
+![Логин](docs/imgs/12-login.jpg)
+![Регистрация](docs/imgs/13-register.jpg)
+![Профиль пользователя](docs/imgs/14-profile-user.jpg)
+![Профиль админа](docs/imgs/15-profile-admin.jpg)
+
+### UX-фичи
+
+![Toast](docs/imgs/16-toast.jpg)
+![Shortcuts](docs/imgs/17-shortcuts.jpg)
+![Empty state](docs/imgs/18-empty-state.jpg)
+![404](docs/imgs/19-404.jpg)
+
+### Бэкенд и БД
+
+![Swagger](docs/imgs/20-swagger.jpg)
+![DB Browser](docs/imgs/21-dbbrowser.jpg)
+
+---
+
+## 14. Безопасность
+
+- **Пароли** хешируются bcrypt (cost factor 12) — пароли в открытом виде нигде
+  не хранятся и не логируются.
+- **JWT** подписаны HS256, ключ берётся из env (`JWT_SECRET`) с дефолтом для
+  dev-режима. Срок действия — 7 дней.
+- **CORS** ограничен `localhost:3000`, `localhost:80`, `localhost`.
+- **Валидация на бэке** — Pydantic-схемы со строгими типами, `Field(...)`
+  с ограничениями длины и `pattern` для категории.
+- **Загрузка файлов** — проверка расширения (только jpg/jpg/webp), размера
+  (макс. 5 МБ), генерация UUID-имени (никаких user-supplied имён).
+- **SQL-инъекции невозможны** — везде ORM SQLAlchemy с параметризованными
+  запросами, никаких raw SQL.
+- **403 vs 401** — корректное разделение: 401 для незалогиненных, 403 для
+  залогиненных без прав.
+
+---
+
+## 15. Возможные расширения
+
+Для прода стоило бы добавить:
+
+- **PostgreSQL** вместо SQLite для конкурентного доступа.
+- **Refresh tokens** + httpOnly cookies вместо localStorage (защита от XSS).
+- **Rate limiting** на чувствительные эндпоинты (login, register).
+- **Email-верификация** при регистрации.
+- **Пагинация** для длинных каталогов.
+- **Кэширование** ответов Open Library API (Redis или встроенный LRU).
+- **Pytest + Vitest** для покрытия тестами.
+- **GitHub Actions CI** — автосборка и проверка при пуше.
+- **S3-совместимое хранилище** для обложек вместо локального диска.
+- **Audit log** — кто/когда/что менял в каталоге.
+
+---
+
+## 16. Выводы
 
 В ходе работы освоены и применены:
 
-- **Vue 3** — структура SPA, реактивная привязка, computed/watch, жизненный цикл,
-  refs, Options API в сочетании с Composition API (composables).
-- **Компонентный подход** — декомпозиция UI, передача данных через `props`,
-  обратное взаимодействие через `emits`, повторное использование через слоты
-  (включая scope).
-- **Маршрутизация Vue Router** — статические, динамические и вложенные маршруты,
-  программная навигация, обработка 404, передача параметров через `props`.
-- **Работа с формами** — `v-model` с модификаторами, валидация, загрузка файлов
-  через `FormData` и `multipart/form-data`.
-- **REST API** — спроектирован и реализован CRUD по REST-конвенциям, статус-коды,
-  возврат 404/201/204 в правильных местах.
-- **FastAPI** — Pydantic-валидация на входе и выходе, dependency injection
-  (`Depends(get_db)`), асинхронные эндпоинты с httpx, автогенерация Swagger UI.
-- **SQLAlchemy 2.x** — современный синтаксис с `Mapped[T]`, сессии, ORM-запросы.
-- **Docker** — multi-stage сборка для минимизации образа, оркестрация
-  compose-файлом, volumes для персистентности, общая сеть для коммуникации
-  сервисов по DNS-имени.
+- **Vue 3** — Options API и Composition API, реактивная привязка, computed,
+  watch, refs, lifecycle hooks, slots всех трёх типов.
+- **Composables** — единый паттерн переиспользуемой бизнес-логики; шесть
+  собственных хуков покрывают аутентификацию, избранное, тему, тосты, шорткаты,
+  анимации.
+- **Vue Router 4** — статические, динамические, вложенные и именованные
+  маршруты; программная навигация; navigation guards для защиты приватных
+  страниц; 404 через catch-all.
+- **Формы** — двусторонняя привязка, модификаторы (`.trim`, `.number`),
+  ручная валидация, загрузка файлов через `FormData`, drag-and-drop.
+- **REST API** — спроектирован полноценный CRUD по REST-конвенциям,
+  корректные статус-коды (201, 204, 401, 403, 404, 409).
+- **FastAPI** — асинхронные эндпоинты, Pydantic-валидация, dependency
+  injection (`Depends(get_db)`, `Depends(require_admin)`), автогенерация Swagger UI.
+- **JWT-аутентификация** — bcrypt для паролей, токены с истечением,
+  опциональная и обязательная авторизация через DI.
+- **SQLAlchemy 2.x** — современный синтаксис с `Mapped[T]`, сессии, ORM-запросы,
+  FK с каскадным удалением, уникальные ограничения.
+- **Docker** — multi-stage сборка фронта (Node → Nginx, итоговый образ ~25 МБ),
+  оркестрация через compose, volumes для персистентности, общая сеть для
+  коммуникации по DNS-имени `backend`.
 - **Структурирование SPA-проекта** — разделение на views/components/services/
-  composables, изоляция бизнес-логики от UI.
+  composables; изоляция бизнес-логики от UI.
+
+Дополнительно реализованы продакшн-уровневые UX-фичи: тёмная тема, toast-
+уведомления, skeleton-loaders, page transitions, drag-and-drop, клавиатурные
+шорткаты, подсветка поисковых совпадений, анимации.
 
 ---
 
-## 13. Источники
+## 17. Источники
 
 - [Vue 3 Documentation](https://vuejs.org/)
 - [Vue Router 4](https://router.vuejs.org/)
 - [Vite](https://vitejs.dev/)
 - [FastAPI](https://fastapi.tiangolo.com/)
 - [SQLAlchemy 2.0](https://docs.sqlalchemy.org/en/20/)
+- [Pydantic v2](https://docs.pydantic.dev/)
+- [python-jose (JWT)](https://github.com/mpdavis/python-jose)
 - [Open Library Developers — Search API](https://openlibrary.org/developers/api)
 - [Docker Compose](https://docs.docker.com/compose/)

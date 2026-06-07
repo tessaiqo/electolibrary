@@ -78,138 +78,224 @@
       </label>
     </div>
 
-    <!-- Загрузка обложки (file) -->
+    <!-- Загрузка обложки: drop zone -->
     <div class="form-group">
       <label>Обложка (jpg/png/webp, до 5 МБ)</label>
-      <input
-        ref="fileInput"
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        @change="onFileChange"
-      />
-      <p v-if="errors.cover" class="form-error">{{ errors.cover }}</p>
-      <p v-if="uploading" class="form-hint">// загружаем обложку…</p>
 
-      <div v-if="form.cover_url" class="cover-preview">
-        <img :src="form.cover_url" alt="preview" />
-        <button type="button" class="btn-small btn-delete" @click="clearCover">
-          Убрать обложку
-        </button>
+      <div
+        class="dropzone"
+        :class="{ 'is-dragover': isDragging, 'is-uploading': uploading }"
+        @click="$refs.fileInput.click()"
+        @dragenter.prevent="isDragging = true"
+        @dragover.prevent="isDragging = true"
+        @dragleave.prevent="onDragLeave"
+        @drop.prevent="onDrop"
+      >
+        <input
+          ref="fileInput"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          class="dropzone__input"
+          @change="onFileChange"
+        />
+
+        <div v-if="uploading" class="dropzone__state">
+          <div class="dropzone__spinner"></div>
+          <span>загружаем…</span>
+        </div>
+
+        <div v-else-if="form.cover_url" class="cover-preview">
+          <img :src="form.cover_url" alt="preview" />
+          <div class="cover-preview__info">
+            <p class="form-hint">обложка загружена</p>
+            <button
+              type="button"
+              class="btn-small btn-delete"
+              @click.stop="clearCover"
+            >
+              Убрать
+            </button>
+          </div>
+        </div>
+
+        <div v-else class="dropzone__state">
+          <svg
+            class="dropzone__icon"
+            viewBox="0 0 24 24"
+            width="32"
+            height="32"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <span class="dropzone__primary">
+            {{
+              isDragging ? "отпустите файл" : "перетащите обложку или нажмите"
+            }}
+          </span>
+          <span class="dropzone__hint">jpg · png · webp, до 5 МБ</span>
+        </div>
       </div>
+
+      <p v-if="errors.cover" class="form-error">{{ errors.cover }}</p>
     </div>
 
     <!-- Кнопки -->
     <div class="form-actions">
       <button type="submit" class="btn" :disabled="submitting || uploading">
-        {{ submitting ? '...' : (isEdit ? 'Сохранить' : 'Создать') }}
+        {{ submitting ? "..." : isEdit ? "Сохранить" : "Создать" }}
       </button>
       <button type="button" class="btn btn-ghost" @click="$emit('cancel')">
         Отмена
       </button>
     </div>
 
-    <p v-if="submitError" class="form-error form-error--big">{{ submitError }}</p>
+    <p v-if="submitError" class="form-error form-error--big">
+      {{ submitError }}
+    </p>
   </form>
 </template>
 
 <script>
-import { bookService } from '@/services/api.js'
+import { bookService } from "@/services/api.js";
 
 const EMPTY = () => ({
-  title: '',
-  author: '',
-  description: '',
-  publisher: '',
+  title: "",
+  author: "",
+  description: "",
+  publisher: "",
   year: null,
-  category: '0+',
+  category: "0+",
   cover_url: null,
   in_stock: true,
-})
+});
 
 export default {
-  name: 'BookForm',
+  name: "BookForm",
   props: {
     initial: { type: Object, default: null }, // данные для редактирования
-    isEdit: { type: Boolean, default: false }
+    isEdit: { type: Boolean, default: false },
   },
-  emits: ['submit', 'cancel'],
+  emits: ["submit", "cancel"],
   data() {
     return {
       form: EMPTY(),
       errors: {},
       submitting: false,
-      submitError: '',
+      submitError: "",
       uploading: false,
-      categories: ['0+', '6+', '12+', '16+', '18+'],
-      publishers: ['АСТ', 'Эксмо', 'Азбука', 'МИФ', 'Вагриус', 'Penguin', 'Random House', 'Taschen']
-    }
+      isDragging: false,
+      categories: ["0+", "6+", "12+", "16+", "18+"],
+      publishers: [
+        "АСТ",
+        "Эксмо",
+        "Азбука",
+        "МИФ",
+        "Вагриус",
+        "Penguin",
+        "Random House",
+        "Taschen",
+      ],
+    };
   },
   watch: {
     // Подхватываем initial, когда оно приедет из родителя (асинхронно)
     initial: {
       immediate: true,
       handler(val) {
-        if (val) this.form = { ...EMPTY(), ...val }
-      }
-    }
+        if (val) this.form = { ...EMPTY(), ...val };
+      },
+    },
   },
   methods: {
     validate() {
-      const e = {}
+      const e = {};
       if (!this.form.title || this.form.title.length < 2) {
-        e.title = 'Минимум 2 символа'
+        e.title = "Минимум 2 символа";
       }
       if (!this.form.author || this.form.author.length < 2) {
-        e.author = 'Минимум 2 символа'
+        e.author = "Минимум 2 символа";
       }
-      if (this.form.year !== null && this.form.year !== '' && this.form.year !== undefined) {
-        const y = Number(this.form.year)
+      if (
+        this.form.year !== null &&
+        this.form.year !== "" &&
+        this.form.year !== undefined
+      ) {
+        const y = Number(this.form.year);
         if (Number.isNaN(y) || y < 0 || y > 2100) {
-          e.year = 'Год от 0 до 2100'
+          e.year = "Год от 0 до 2100";
         }
       }
-      this.errors = e
-      return Object.keys(e).length === 0
+      this.errors = e;
+      return Object.keys(e).length === 0;
     },
 
     async onFileChange(event) {
-      const file = event.target.files[0]
-      if (!file) return
-      this.errors.cover = ''
-      this.uploading = true
-      try {
-        const { data } = await bookService.uploadCover(file)
-        this.form.cover_url = data.cover_url
-      } catch (err) {
-        this.errors.cover = err.response?.data?.detail || 'Ошибка загрузки'
-      } finally {
-        this.uploading = false
-      }
-    },
+  const file = event.target.files[0]
+  if (!file) return
+  await this.uploadFile(file)
+},
+
+async onDrop(event) {
+  this.isDragging = false
+  const file = event.dataTransfer?.files?.[0]
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    this.errors.cover = 'Можно перетащить только изображение'
+    return
+  }
+  await this.uploadFile(file)
+},
+
+onDragLeave(event) {
+  // Срабатывает при пересечении границы любого вложенного элемента,
+  // поэтому проверяем, что мы реально покинули dropzone
+  if (event.currentTarget.contains(event.relatedTarget)) return
+  this.isDragging = false
+},
+
+async uploadFile(file) {
+  this.errors.cover = ''
+  this.uploading = true
+  try {
+    const { data } = await bookService.uploadCover(file)
+    this.form.cover_url = data.cover_url
+  } catch (err) {
+    this.errors.cover = err.response?.data?.detail || 'Ошибка загрузки'
+  } finally {
+    this.uploading = false
+  }
+},
 
     clearCover() {
-      this.form.cover_url = null
-      if (this.$refs.fileInput) this.$refs.fileInput.value = ''
+      this.form.cover_url = null;
+      if (this.$refs.fileInput) this.$refs.fileInput.value = "";
     },
 
     async onSubmit() {
-      this.submitError = ''
-      if (!this.validate()) return
+      this.submitError = "";
+      if (!this.validate()) return;
 
-      this.submitting = true
+      this.submitting = true;
       try {
         // year — нормализуем пустую строку в null
         const payload = {
           ...this.form,
-          year: this.form.year === '' ? null : this.form.year
-        }
-        this.$emit('submit', payload)
+          year: this.form.year === "" ? null : this.form.year,
+        };
+        this.$emit("submit", payload);
       } catch (err) {
-        this.submitError = err.message
+        this.submitError = err.message;
       } finally {
-        this.submitting = false
+        this.submitting = false;
       }
-    }
-  }
-}
+    },
+  },
+};
 </script>

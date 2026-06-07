@@ -9,6 +9,7 @@
         v-for="book in books"
         :key="book.id"
         :book="book"
+        :highlight-query="highlightQuery"
         @edit="$emit('edit', $event)"
         @delete="$emit('delete', $event)"
         @toggle="$emit('toggle', $event)"
@@ -24,7 +25,8 @@ export default {
   name: 'BookList',
   components: { BookItem },
   props: {
-    books: { type: Array, required: true }
+    books: { type: Array, required: true },
+    highlightQuery: { type: String, default: '' }
   },
   emits: ['edit', 'delete', 'toggle']
 }

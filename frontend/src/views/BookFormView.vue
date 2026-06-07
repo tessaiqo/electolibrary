@@ -1,10 +1,10 @@
 <template>
   <div>
-    <h2 class="page-title">{{ isEdit ? 'Редактирование' : 'Новая книга' }}</h2>
+    <h2 class="page-title">{{ isEdit ? "Редактирование" : "Новая книга" }}</h2>
 
     <LayoutCard>
       <template #header>
-        {{ isEdit ? `id: ${id}` : 'Заполните поля' }}
+        {{ isEdit ? `id: ${id}` : "Заполните поля" }}
       </template>
 
       <div v-if="loading" class="loading">// загружаем данные книги…</div>
@@ -21,36 +21,43 @@
 </template>
 
 <script>
-import LayoutCard from '@/components/LayoutCard.vue'
-import BookForm from '@/components/BookForm.vue'
-import { bookService } from '@/services/api.js'
+import LayoutCard from "@/components/LayoutCard.vue";
+import BookForm from "@/components/BookForm.vue";
+import { bookService } from "@/services/api.js";
+import { useToast } from "@/composables/useToast.js";
 
 export default {
-  name: 'BookFormView',
+  name: "BookFormView",
   components: { LayoutCard, BookForm },
   props: {
-    id: { type: [String, Number], default: null }
+    id: { type: [String, Number], default: null },
+  },
+  setup() {
+    const toast = useToast();
+    return { toast };
   },
   data() {
     return {
       bookData: null,
-      loading: false
-    }
+      loading: false,
+    };
   },
   computed: {
-    isEdit() { return !!this.id }
+    isEdit() {
+      return !!this.id;
+    },
   },
   async mounted() {
     if (this.isEdit) {
-      this.loading = true
+      this.loading = true;
       try {
-        const { data } = await bookService.get(this.id)
-        this.bookData = data
+        const { data } = await bookService.get(this.id);
+        this.bookData = data;
       } catch (e) {
-        alert('Книга не найдена')
-        this.$router.push({ name: 'books' })
+        alert("Книга не найдена");
+        this.$router.push({ name: "books" });
       } finally {
-        this.loading = false
+        this.loading = false;
       }
     }
   },
@@ -58,18 +65,20 @@ export default {
     async onSubmit(payload) {
       try {
         if (this.isEdit) {
-          await bookService.update(this.id, payload)
+          await bookService.update(this.id, payload);
+          this.toast.success("Книга обновлена");
         } else {
-          await bookService.create(payload)
+          await bookService.create(payload);
+          this.toast.success("Книга создана");
         }
-        this.$router.push({ name: 'books' })
+        this.$router.push({ name: "books" });
       } catch (e) {
-        alert('Ошибка: ' + (e.response?.data?.detail || e.message))
+        this.toast.error("Ошибка: " + (e.response?.data?.detail || e.message));
       }
     },
     onCancel() {
-      this.$router.push({ name: 'books' })
-    }
-  }
-}
+      this.$router.push({ name: "books" });
+    },
+  },
+};
 </script>
