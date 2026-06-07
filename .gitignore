@@ -31,3 +31,5 @@ backend/data/*.db-journal
 # Uploads — НЕ коммитим содержимое, но сама папка нужна
 uploads/*
 !uploads/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
